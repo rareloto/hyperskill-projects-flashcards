@@ -1,6 +1,7 @@
+from io import StringIO
 import random
+import json
 import sys
-
 
 class Flashcards:
 	def __init__(self):
@@ -12,17 +13,18 @@ class Flashcards:
 			"export": lambda: self.export_cards(), 
 			"ask": lambda: self.review_cards(), 
 			"exit": lambda: self.exit(),
+			"log": lambda: self.log(),
+			"hardest card": lambda: self.hardest_card(),
+			"reset stats": lambda: self.reset_stats(),
 			# "view": lambda: self.view_cards()
 		}
-		self.delimiter = ','
+		# self.delimiter = ','
 		
 	def main(self):
 		while True:
 			action = input(f"Input the action ({', '.join(self.actions)}): \n> ")
 			self.actions.get(action, lambda: print("Invalid action. Try again."))()
 			print()
-			
-		# self.view_cards()
 	
 	def add_card(self):
 		# Prompt user for term and definition
@@ -32,12 +34,13 @@ class Flashcards:
 			term = input("> ")
 		
 		definition = input(f"The definition of the card: \n> ")
-		while definition in self.flashcards.values():
+		definitions = [self.flashcards[term]['definition'] for term in self.flashcards]
+		while definition in definitions:
 			print(f'The definition "{definition}" already exists. Try again: ')
 			definition = input("> ")
 		
 		# Add to flashcards
-		self.flashcards[term] = definition
+		self.flashcards[term] = { 'definition': definition, 'mistakes': 0 }
 		
 		print(f'The pair ("{term}":"{definition}") has been added.')
 		
@@ -51,17 +54,14 @@ class Flashcards:
 	
 	def import_cards(self):
 		filename = input("File name: \n> ")
-		cards_loaded = 0
 		
 		try:
-			with open(filename) as f:
-				for pair in f:
-					term, definition = pair.split(',')[:2]
-					self.flashcards[term] = definition.rstrip()
-					cards_loaded += 1
-			
-			print(f"{cards_loaded} cards have been loaded.")
-		except Exception:
+			with open(filename) as f_import:
+				imported_cards = json.load(f_import)
+				self.flashcards.update(imported_cards)
+				
+			print(f"{len(imported_cards)} cards have been loaded.")
+		except FileNotFoundError:
 			print("File not found.")
 			
 	def export_cards(self):
@@ -70,9 +70,8 @@ class Flashcards:
 			return
 	
 		filename = input("File name: \n> ")
-		with open(filename, "w") as f:
-			for term, definition in self.flashcards.items():
-				f.write(f"{term}{self.delimiter}{definition}\n")
+		with open(filename, "w") as f_export:
+			json.dump(self.flashcards, f_export)
 		
 		print(f"{len(self.flashcards)} cards have been saved.")
 		
@@ -81,11 +80,14 @@ class Flashcards:
 			print("You haven't created any flashcards yet. Try adding one first.")
 			return
 			
-		for term, definition in self.flashcards.items():
+		for term, values in self.flashcards.items():
+			definition, mistakes = values['definition'], values['mistakes']
 			print("Card:")
 			print(term)
 			print("Definition:")
 			print(definition)
+			print("Mistakes:")
+			print(mistakes)
 			print()
 			
 	def review_cards(self):
@@ -106,16 +108,19 @@ class Flashcards:
 		
 		cards_reviewed = 0
 		while cards_reviewed < card_count:
-			for term, definition in random.sample(self.flashcards.items(), len(self.flashcards)):
+			for term, values in random.sample(self.flashcards.items(), len(self.flashcards)):
+				definition, mistakes = values['definition'], values['mistakes']
+				
 				answer = input(f'Print the definition of "{term}": \n> ')
 			
 				if answer.casefold() == definition.casefold():
 					print("Correct!")
 				else:
 					key_match = [key for key in self.flashcards \
-								 if self.flashcards[key].casefold() == answer.casefold()]
+								 if self.flashcards[key]['definition'].casefold() == answer.casefold()]
 					print(f'Wrong! The right answer is "{definition}".' +
 						 (f'\b, but your definition is correct for "{key_match[0]}".' if key_match else ""))
+					self.flashcards[term]['mistakes'] += 1
 						 
 				cards_reviewed += 1
 				if cards_reviewed == card_count:
@@ -125,7 +130,54 @@ class Flashcards:
 	def exit():
 		print("Bye bye!")
 		sys.exit()
+		
+	def log(self):
+		log = StringIO("Log:\n")
+		log.write("Test")
+		...
+		
+		filename = input("File name: \n> ")
+		with open(filename, 'w') as f_log:
+			for line in log:
+				f_log.write(line)
 
+		print("The log has been saved.")
+		
+	def hardest_card(self):
+		if not self.flashcards:
+			print("There are no cards with errors.")
+			return
+			
+		highest_mistakes = max([values['mistakes'] for term, values in self.flashcards.items()])
+		hardest_card = [card for card in self.flashcards \
+						if self.flashcards[card]['mistakes'] == highest_mistakes]
+
+		if highest_mistakes == 0:
+			print("There are no cards with errors.")
+		else:
+			linking_verb = 'is' if len(hardest_card) == 1 else 'are'
+			s_ending = 's' if len(hardest_card) > 1 else ''
+			pronoun = 'it' if len(hardest_card) == 1 else 'them'
+			replace_chars = {'[': '', ']': '', "'": '"'}
+			trans_table = f"{hardest_card}".maketrans(replace_chars)
+			print(f"The hardest card{s_ending} {linking_verb} " \
+				  f"{hardest_card}. ".translate(trans_table) 
+				  + f"You have {highest_mistakes} errors answering {pronoun}.")
+		
+	def reset_stats(self):
+		if not self.flashcards:
+			print("You haven't created any flashcards yet. Try adding one first.")
+			return
+			
+		self.flashcards = {
+			term: {
+				'definition': self.flashcards[term]['definition'],
+				'mistakes': 0
+			}
+			for term in self.flashcards
+		}
+		print("Card statistics have been reset.")
+		
 
 if __name__ == "__main__":
 	flashcards = Flashcards()
