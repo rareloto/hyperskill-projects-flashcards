@@ -1,4 +1,5 @@
 from io import StringIO
+import argparse
 import random
 import json
 import sys
@@ -18,9 +19,18 @@ class Flashcards:
 			"reset stats": lambda: self.reset_stats(),
 			# "view": lambda: self.view_cards()
 		}
-		# self.delimiter = ','
+		self.args = None
 		
 	def main(self):
+		parser = argparse.ArgumentParser()
+		parser.add_argument("--import_from", help="import cards from file")
+		parser.add_argument("--export_to", help="export cards to file")
+		self.args = parser.parse_args()
+		
+		if self.args.import_from:
+			self.import_cards(self.args.import_from)
+			print()
+	
 		while True:
 			action = input(f"Input the action ({', '.join(self.actions)}): \n> ")
 			self.actions.get(action, lambda: print("Invalid action. Try again."))()
@@ -52,8 +62,9 @@ class Flashcards:
 		else:
 			print(f"Can't remove \"{card}\". There is no such card.")
 	
-	def import_cards(self):
-		filename = input("File name: \n> ")
+	def import_cards(self, filename=None):
+		if not filename:
+			filename = input("File name: \n> ")
 		
 		try:
 			with open(filename) as f_import:
@@ -64,12 +75,14 @@ class Flashcards:
 		except FileNotFoundError:
 			print("File not found.")
 			
-	def export_cards(self):
+	def export_cards(self, filename=None):
 		if not self.flashcards:
-			print("You haven't created any flashcards yet. Try adding one first.")
+			print("You haven't created any cards yet. 0 cards exported.")
 			return
 	
-		filename = input("File name: \n> ")
+		if not filename:
+			filename = input("File name: \n> ")
+			
 		with open(filename, "w") as f_export:
 			json.dump(self.flashcards, f_export)
 		
@@ -126,8 +139,10 @@ class Flashcards:
 				if cards_reviewed == card_count:
 					return
 	
-	@staticmethod		
-	def exit():
+	def exit(self):
+		if self.args.export_to:
+			self.export_cards(self.args.export_to)
+		
 		print("Bye bye!")
 		sys.exit()
 		
@@ -162,7 +177,8 @@ class Flashcards:
 			trans_table = f"{hardest_card}".maketrans(replace_chars)
 			print(f"The hardest card{s_ending} {linking_verb} " \
 				  f"{hardest_card}. ".translate(trans_table) 
-				  + f"You have {highest_mistakes} errors answering {pronoun}.")
+				  + f"You have {highest_mistakes} error{'s' if highest_mistakes > 1 else ''} " \
+				    f"answering {pronoun}.")
 		
 	def reset_stats(self):
 		if not self.flashcards:
@@ -176,7 +192,7 @@ class Flashcards:
 			}
 			for term in self.flashcards
 		}
-		print("Card statistics have been reset.")
+		print("Card statistics has been reset.")
 		
 
 if __name__ == "__main__":
